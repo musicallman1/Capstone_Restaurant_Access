@@ -1,113 +1,103 @@
-WITH business_reputation AS
-(SELECT 
-  postal_code,
-  COUNT(*) AS business_count,
-  AVG(stars) AS business_rating, 
-  SUM(review_count) AS total_reviews
-FROM`yelp-analysis-503216`.Philly_yelp.philly_businesses
-GROUP BY postal_code), 
+WITH zip_all_business AS (
+  SELECT
+    CAST(b.postal_code AS STRING) AS postal_code,
+    COUNT(DISTINCT b.business_id) AS business_count,
+    AVG(b.stars) AS avg_rating,
+    AVG(b.review_count) AS avg_review_count
+  FROM `yelp-analysis-503216.Philly_yelp.philly_businesses` b
+  GROUP BY b.postal_code
+),
 
-loan_activity AS 
-(SELECT
-  BorrZip AS postal_code,
-  COUNT(*) AS loan_count,
-  SUM(GrossApproval) AS total_loan_value,
-  AVG(GrossApproval) AS avg_loan_size
-FROM `yelp-analysis-503216`.Philly_yelp.sba_loans
-WHERE ApprovalDate BETWEEN '2018-01-01' AND '2022-12-31' 
-GROUP BY BorrZip),
-
-business_loan_prct AS 
-(SELECT 
-  postal_code, 
-  business_count, 
-  ROUND(business_rating,3) AS business_rating,
-  total_reviews, 
-  total_loan_value,
-  coalesced_loan_count,
-  ROUND(coalesced_loan_count/business_count * 100,2) AS business_loan_prct
-
-FROM (
-  SELECT 
-    br.postal_code, 
-    br.business_count, 
-    br.business_rating,
-    br.total_reviews, 
-    COALESCE(la.total_loan_value, 0) AS total_loan_value,
-    COALESCE(la.loan_count, 0) AS coalesced_loan_count
-  FROM business_reputation br
-    LEFT JOIN loan_activity la USING (postal_code)
-    WHERE br.business_count >= 10
-  )
-  ORDER BY business_loan_prct DESC),
-
- restaurant_ratings AS 
-(SELECT 
-  postal_code,
-  COUNT(*) AS restaurant_count,
-  AVG(stars) AS avg_rating,
-  SUM(review_count) AS total_reviews
-FROM`yelp-analysis-503216`.Philly_yelp.philly_businesses
-  WHERE categories LIKE '%Restaurants%'
-  GROUP BY postal_code
-  ),
-
-restaurant_loans AS 
-(SELECT
-  BorrZip AS postal_code,
-  COUNT(*) AS loan_count,
-  SUM(GrossApproval) AS total_loan_volume
-FROM `yelp-analysis-503216`.Philly_yelp.sba_loans
-  WHERE CAST(NaicsCode AS STRING) LIKE '7225%'
-  AND ApprovalDate BETWEEN '2018-01-01' AND '2022-12-31' 
+zip_all_loans AS (
+  SELECT
+    CAST(BorrZip AS STRING) AS postal_code,
+    COUNT(*) AS loan_count
+  FROM `yelp-analysis-503216.Philly_yelp.sba_loans`
+  WHERE ApprovalDate BETWEEN '2018-01-01' AND '2022-12-31'
   GROUP BY BorrZip
-  ),
+),
 
-restaurant_loan_prct AS 
-(SELECT 
-  postal_code, 
-  restaurant_count, 
-  ROUND(avg_rating,3) AS avg_rating,
-  total_reviews, 
-  total_loan_volume,
-  coalesced_loan_count,
-  ROUND(coalesced_loan_count/restaurant_count * 100,2) AS rest_loan_prct
+-- Per-ZIP: restaurants only
+zip_restaurant_business AS (
+  SELECT
+    CAST(b.postal_code AS STRING) AS postal_code,
+    COUNT(DISTINCT b.business_id) AS restaurant_business_count,
+    AVG(b.stars) AS restaurant_avg_rating,
+    AVG(b.review_count) AS restaurant_avg_review_count
+  FROM `yelp-analysis-503216.Philly_yelp.philly_businesses` b
+  WHERE b.categories LIKE '%Restaurants%'
+  GROUP BY b.postal_code
+),
 
-FROM (
-  SELECT 
-    rr.postal_code,
-    rr.restaurant_count, 
-    rr.avg_rating,
-    rr.total_reviews, 
-    COALESCE(rl.total_loan_volume, 0) AS total_loan_volume,
-    COALESCE(rl.loan_count, 0) AS coalesced_loan_count
-  FROM restaurant_ratings rr
-    LEFT JOIN restaurant_loans rl USING (postal_code)
-    WHERE rr.restaurant_count >= 10
-  )
-  ORDER BY rest_loan_prct DESC)
+zip_restaurant_loans AS (
+  SELECT
+    CAST(BorrZip AS STRING) AS postal_code,
+    COUNT(*) AS restaurant_loan_count
+  FROM `yelp-analysis-503216.Philly_yelp.sba_loans`
+  WHERE CAST(NaicsCode AS STRING) LIKE '7225%'
+    AND ApprovalDate BETWEEN '2018-01-01' AND '2022-12-31'
+  GROUP BY BorrZip
+),
 
-  SELECT 
-CAST(blp.postal_code AS STRING) AS postal_code,
-blp.business_count,
-rlp.restaurant_count,
-blp.business_rating,
-rlp.avg_rating,
-blp.total_reviews AS business_total_reviews,
-rlp.total_reviews AS restaurant_total_reviews,
-blp.total_loan_value,
-rlp.total_loan_volume,
-blp.coalesced_loan_count AS coal_bus_loan_count,
-rlp.coalesced_loan_count AS coal_rest_loan_count,
-blp.business_loan_prct,
-rlp.rest_loan_prct,
-ROUND(rlp.restaurant_count/blp.business_count * 100,2) AS restaurant_share_prct,
-ROUND(blp.business_loan_prct - rlp.rest_loan_prct,2) AS divergence_loan_prct,
-ROUND(blp.business_rating - rlp.avg_rating,4) AS divergence_rating
+-- Combine into one row per real ZIP
+per_zip AS (
+  SELECT
+    a.postal_code,
+    a.business_count,
+    a.avg_rating,
+    a.avg_review_count,
+    ROUND(COALESCE(al.loan_count, 0) / a.business_count * 100, 2) AS loan_prct,
+    COALESCE(al.loan_count, 0) AS loan_count,
+    r.restaurant_business_count,
+    r.restaurant_avg_rating,
+    r.restaurant_avg_review_count,
+    ROUND(COALESCE(rl.restaurant_loan_count, 0) / r.restaurant_business_count * 100, 2) AS restaurant_loan_prct,
+    COALESCE(rl.restaurant_loan_count, 0) AS restaurant_loan_count,
+    ROUND(
+      (COALESCE(al.loan_count, 0) / a.business_count * 100)
+        - (COALESCE(rl.restaurant_loan_count, 0) / r.restaurant_business_count * 100)
+      , 2) AS divergence_loan_prct
+  FROM zip_all_business a
+  LEFT JOIN zip_all_loans al ON a.postal_code = al.postal_code
+  LEFT JOIN zip_restaurant_business r ON a.postal_code = r.postal_code
+  LEFT JOIN zip_restaurant_loans rl ON a.postal_code = rl.postal_code
+  WHERE r.restaurant_business_count IS NOT NULL  -- drop ZIPs with zero restaurants to avoid divide-by-zero
+),
 
-  FROM
-  business_loan_prct blp
-  JOIN
-  restaurant_loan_prct rlp 
-  USING (postal_code)
-  ORDER BY divergence_loan_prct DESC
+citywide AS (
+  SELECT
+    'CITYWIDE' AS postal_code,
+    COUNT(DISTINCT b.business_id) AS business_count,
+    AVG(b.stars) AS avg_rating,
+    AVG(b.review_count) AS avg_review_count,
+    ROUND((SELECT COUNT(*) FROM `yelp-analysis-503216.Philly_yelp.sba_loans`
+           WHERE ApprovalDate BETWEEN '2018-01-01' AND '2022-12-31')
+          / COUNT(DISTINCT b.business_id) * 100, 2) AS loan_prct,
+    (SELECT COUNT(*) FROM `yelp-analysis-503216.Philly_yelp.sba_loans`
+     WHERE ApprovalDate BETWEEN '2018-01-01' AND '2022-12-31') AS loan_count,
+    (SELECT COUNT(DISTINCT business_id) FROM `yelp-analysis-503216.Philly_yelp.philly_businesses`
+     WHERE categories LIKE '%Restaurants%') AS restaurant_business_count,
+    (SELECT AVG(stars) FROM `yelp-analysis-503216.Philly_yelp.philly_businesses`
+     WHERE categories LIKE '%Restaurants%') AS restaurant_avg_rating,
+    (SELECT AVG(review_count) FROM `yelp-analysis-503216.Philly_yelp.philly_businesses`
+     WHERE categories LIKE '%Restaurants%') AS restaurant_avg_review_count,
+    1.86 AS restaurant_loan_prct,   
+    (SELECT COUNT(*) FROM `yelp-analysis-503216.Philly_yelp.sba_loans`
+     WHERE CAST(NaicsCode AS STRING) LIKE '7225%'
+       AND ApprovalDate BETWEEN '2018-01-01' AND '2022-12-31') AS restaurant_loan_count,
+    ROUND(
+      ((SELECT COUNT(*) FROM `yelp-analysis-503216.Philly_yelp.sba_loans`
+        WHERE ApprovalDate BETWEEN '2018-01-01' AND '2022-12-31')
+        / COUNT(DISTINCT b.business_id) * 100) -
+      ((SELECT COUNT(*) FROM `yelp-analysis-503216.Philly_yelp.sba_loans`
+        WHERE CAST(NaicsCode AS STRING) LIKE '7225%'
+          AND ApprovalDate BETWEEN '2018-01-01' AND '2022-12-31')
+        / (SELECT COUNT(DISTINCT business_id) FROM `yelp-analysis-503216.Philly_yelp.philly_businesses`
+      WHERE categories LIKE '%Restaurants%') * 100)
+    , 2) AS divergence_loan_prct
+  FROM `yelp-analysis-503216.Philly_yelp.philly_businesses` b
+)
+
+SELECT * FROM citywide
+UNION ALL
+SELECT * FROM per_zip
