@@ -1,22 +1,26 @@
-WITH business_reputation AS
+WITH restaurant_ratings AS 
 (SELECT 
   postal_code,
-  COUNT(*) AS business_count,
-  AVG(stars) AS business_rating, 
-  SUM(review_count) AS total_reviews, 
+  COUNT(*) AS restaurant_count,
+  AVG(stars) AS avg_rating,
+  SUM(review_count) AS total_reviews
 FROM`yelp-analysis-503216`.Philly_yelp.philly_businesses
-GROUP BY postal_code), 
+  WHERE categories LIKE '%Restaurants'
+  GROUP BY postal_code
+  ),
 
-loan_activity AS 
+restaurant_loans AS 
 (SELECT
   BorrZip AS postal_code,
   COUNT(*) AS loan_count,
-  SUM(GrossApproval) AS total_loan_value,
-  AVG(GrossApproval) AS avg_loan_size,
+  SUM(GrossApproval) AS total_loan_volume
 FROM `yelp-analysis-503216`.Philly_yelp.sba_loans
-GROUP BY BorrZip)
+  WHERE CAST(NaicsCode AS STRING) LIKE '7225%'
+  AND ApprovalDate BETWEEN '2018-01-01' AND '2022-12-31'
+  GROUP BY BorrZip
+  )
 
-SELECT *
-FROM business_reputation br
-LEFT JOIN loan_activity la USING (postal_code)
-ORDER BY br.postal_code
+  SELECT *
+  FROM restaurant_ratings rr
+  LEFT JOIN restaurant_loans rl USING (postal_code)
+  ORDER BY rr.postal_code
