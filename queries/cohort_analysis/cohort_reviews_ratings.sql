@@ -28,7 +28,7 @@ all_rating_trajectory AS (
     FROM all_rating_cohort_businesses cb
     JOIN all_business_year_reviews byr
         ON cb.business_id = byr.business_id
-    WHERE cb.cohort_year BETWEEN 2007 AND 2018
+    WHERE cb.cohort_year BETWEEN 2012 AND 2018
       AND byr.review_year - cb.cohort_year BETWEEN 1 AND 4
 ),
 
@@ -75,7 +75,7 @@ rest_rating_trajectory AS (
     FROM rest_rating_cohort_businesses cb
     JOIN rest_business_year_reviews byr
         ON cb.business_id = byr.business_id
-    WHERE cb.cohort_year BETWEEN 2007 AND 2018
+    WHERE cb.cohort_year BETWEEN 2012 AND 2018
       AND byr.review_year - cb.cohort_year BETWEEN 1 AND 4
 ),
 
