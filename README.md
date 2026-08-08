@@ -6,8 +6,8 @@ This project asks a single core question: **does business reputation actually in
 
 The short answer is no — not in the way it should. Philadelphia restaurants face a persistent capital access gap (loan rates run **2.8x–3.4x lower** than the citywide average across four years of business maturity), even though restaurant reputation (Yelp ratings and review volume) tracks closely with the citywide average over the same period. The gap is sharpest for **established, post-startup restaurants** — the exact population Experian's own reputation-scoring research identifies as best positioned to benefit from reputation-aware underwriting, since they've accumulated the review history a startup hasn't yet.
 
-Full analysis, methodology, and citations: **[Written Report](./report/written_report.docx)**
-Interactive exploration: **[Tableau Dashboard](#)** *(link pending publication)*
+Full analysis, methodology, and citations: **[Written Report](./report/Written_Report.docx)**
+Interactive exploration: **[Tableau Dashboard](https://public.tableau.com/app/profile/hakeem.leonard/viz/Restaurant_Capital_Analysis/Overview)**
 
 ## Data Sources
 
@@ -19,19 +19,20 @@ Raw data files are not included in this repo (size and licensing constraints). S
 
 ## Repo Structure
 
-```
-/queries/
-  segmentation.sql          -- cross-industry + ZIP-level comparison (Technique 1)
-  cohort_analysis.sql       -- cohort loan-rate & rating trajectories (Technique 2), corrected version
-  hypothesis_test.sql       -- startup vs. non-startup chi-square test (Technique 3)
-/report/
-  written_report.docx
-/dashboard/
-  (Tableau Public link)
-/notes/
-  corrections_log.md
-README.md
-```
+- [/queries/](./queries)
+  - segmentation.sql -- cross-industry + ZIP-level comparison (Technique 1)
+    - [cross_industry_comparison.sql](./queries/segmentation/cross_industry_comparison.sql)
+    - [zip_level_divergence.sql](./queries/segmentation/zip_level_divergence.sql)
+  - cohort_analysis.sql -- cohort loan-rate & rating trajectories (Technique 2), corrected version
+    - [cohort_loan_rate.sql](./queries/cohort_analysis/cohort_loan_rate.sql)
+    - [cohort_reviews_ratings.sql](./queries/cohort_analysis/cohort_reviews_ratings.sql)
+  - hypothesis_test.sql -- startup vs. non-startup chi-square test (Technique 3)
+    - [Startup_NonStartup.sql](./queries/hypothesis_test/Startup_NonStartup.sql)
+    - [chi_squared.sql](./queries/hypothesis_test/chi_squared.sql)
+      
+ - [/report/](./report/Written_Report.docx)
+ - [/dashboard/](https://public.tableau.com/app/profile/hakeem.leonard/viz/Restaurant_Capital_Analysis/Overview)
+ - [README.md](/README.md)
 
 ## Methodology Summary
 
@@ -59,13 +60,13 @@ Documenting corrections made during the analysis, since a few materially changed
 
 | Issue | What was wrong | What changed | Where |
 |---|---|---|---|
-| False zero-rate cohort years (Day 9) | SBA restaurant loan records don't begin until April 2012; cohort years 2007–2010 showed false 0% loan rates as a coverage artifact, not a real finding | Narrowed the cohort window from 2007–2018 to **2012–2018** | `cohort_analysis.sql` |
-| Unweighted cohort average (Day 9) | Citywide cohort rate was computed as an unweighted average of ZIP-level percentages, letting tiny-denominator ZIPs distort it (root cause of a false 2014 spike) | Switched to a weighted citywide rate (sum of loans ÷ sum of businesses) | `cohort_analysis.sql` |
-| ZIP-year drop-out (Day 12) | Businesses in ZIP-years with zero recorded loans were silently dropped from the join rather than counted at a true 0%, understating the gap | Recomputed against a complete ZIP × year grid (LEFT JOIN); gap widened from ~1.6x pre-fix to the corrected **2.8x–3.4x**. Also reframed "widens" → "persists," since per-cohort data doesn't consistently support a widening trend | `cohort_analysis.sql` |
-| Small-denominator ZIP-years | Very small business counts (e.g., 2 restaurants, 1 loan → 50%) produced unstable rates | ZIP-years with fewer than 10 businesses in the relevant category fall back to that year's citywide rate | `cohort_analysis.sql` |
-| Sign-convention bug (Day 14) | Two BigQuery queries feeding the Zip Explorer dashboard computed "Divergence Loan Prct" in opposite subtraction order (map: all-minus-restaurant; KPI card: restaurant-minus-all) — caught via a 19140 spot-check showing +26.60 vs. −26.60 | Standardized both queries on all-minus-restaurant; replaced a hardcoded citywide restaurant rate with a live subquery | Zip Explorer view |
-| Two analysis windows | Cross-industry/geographic/hypothesis testing use 2018–2022; cohort analysis uses 2012–2018 | Documented as a deliberate scoping choice — cohort needed the earliest window supporting full 4-year tracking (SBA restaurant records begin April 2012, not a Yelp-coverage constraint) | See Methodology |
-| Anomalous ZIPs (19176, 19195) | 55 and 35 businesses geocoded to a PO-box-only ZIP and a single-entity ZIP, respectively, both showing 0% loan activity | Flagged as likely geocoding artifacts rather than genuine findings; not excluded from data, but caveated | `segmentation.sql` |
+| False zero-rate cohort years (Day 9) | SBA restaurant loan records don't begin until April 2012; cohort years 2007–2010 showed false 0% loan rates as a coverage artifact, not a real finding | Narrowed the cohort window from 2007–2018 to **2012–2018** | [cohort_loan_rate.sql](./queries/cohort_analysis/cohort_loan_rate.sql) |
+| Unweighted cohort average (Day 9) | Citywide cohort rate was computed as an unweighted average of ZIP-level percentages, letting tiny-denominator ZIPs distort it (root cause of a false 2014 spike) | Switched to a weighted citywide rate (sum of loans ÷ sum of businesses) | [cohort_loan_rate.sql](./queries/cohort_analysis/cohort_loan_rate.sql) |
+| ZIP-year drop-out (Day 12) | Businesses in ZIP-years with zero recorded loans were silently dropped from the join rather than counted at a true 0%, understating the gap | Recomputed against a complete ZIP × year grid (LEFT JOIN); gap widened from ~1.6x pre-fix to the corrected **2.8x–3.4x**. Also reframed "widens" → "persists," since per-cohort data doesn't consistently support a widening trend | [cohort_loan_rate.sql](./queries/cohort_analysis/cohort_loan_rate.sql) |
+| Small-denominator ZIP-years | Very small business counts (e.g., 2 restaurants, 1 loan → 50%) produced unstable rates | ZIP-years with fewer than 10 businesses in the relevant category fall back to that year's citywide rate | [cohort_loan_rate.sql](./queries/cohort_analysis/cohort_loan_rate.sql) |
+| Sign-convention bug (Day 14) | Two BigQuery queries feeding the Zip Explorer dashboard computed "Divergence Loan Prct" in opposite subtraction order (map: all-minus-restaurant; KPI card: restaurant-minus-all) — caught via a 19140 spot-check showing +26.60 vs. −26.60 | Standardized both queries on all-minus-restaurant; replaced a hardcoded citywide restaurant rate with a live subquery | [dashboard (Zip Explorer view)](https://public.tableau.com/app/profile/hakeem.leonard/viz/Restaurant_Capital_Analysis/Overview) |
+| Two analysis windows | Cross-industry/geographic/hypothesis testing use 2018–2022; cohort analysis uses 2012–2018 | Documented as a deliberate scoping choice — cohort needed the earliest window supporting full 4-year tracking (SBA restaurant records begin April 2012, not a Yelp-coverage constraint) | [See Methodology](./report/Written_Report.docx) |
+| Anomalous ZIPs (19176, 19195) | 55 and 35 businesses geocoded to a PO-box-only ZIP and a single-entity ZIP, respectively, both showing 0% loan activity | Flagged as likely geocoding artifacts rather than genuine findings; not excluded from data, but caveated | [zip_level_divergence.sql](./queries/segmentation/zip_level_divergence.sql) |
 
 Full corrections history: [`/notes/corrections_log.md`](./notes/corrections_log.md)
 
