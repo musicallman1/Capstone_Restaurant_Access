@@ -1,12 +1,12 @@
-# Reputation vs. Access: SBA Lending Gaps in Philadelphia's Restaurant Industry
 
 ## Overview
 
 This project asks a single core question: **does business reputation actually influence access to SBA capital in Philadelphia's small business lending market?**
 
-The short answer is no — not in the way it should. Philadelphia restaurants face a persistent capital access gap (loan rates run **2.8x–3.4x lower** than the citywide average across four years of business maturity), even though restaurant reputation (Yelp ratings and review volume) tracks closely with the citywide average over the same period. The gap is sharpest for **established, post-startup restaurants** — the exact population Experian's own reputation-scoring research identifies as best positioned to benefit from reputation-aware underwriting, since they've accumulated the review history a startup hasn't yet.
+Short answer: not really, not in the way it should. Philadelphia restaurants face a persistent capital access gap (loan rates run **2.8x–3.4x lower** than the citywide average across four years of business maturity), even though restaurant reputation (Yelp ratings and review volume) tracks closely with the citywide average over the same period. The gap is sharpest for **established, post-startup restaurants** — the exact population Experian's own reputation-scoring research identifies as best positioned to benefit from reputation-aware underwriting, since they've accumulated the review history a startup hasn't yet.
 
-Full analysis, methodology, and citations: **[Written Report](./report/Written_Report.docx)**
+Full analysis, methodology, and citations: **[Written Report](https://docs.google.com/document/d/1dOyz8SyU3f40s-XmVZRsFax28nx8YwV4sAFtZ8QTIk0/edit?usp=sharing)**
+
 Interactive exploration: **[Tableau Dashboard](https://public.tableau.com/app/profile/hakeem.leonard/viz/Restaurant_Capital_Analysis/Overview)**
 
 ## Data Sources
@@ -30,7 +30,7 @@ Raw data files are not included in this repo (size and licensing constraints). S
     - [Startup_NonStartup.sql](./queries/hypothesis_test/Startup_NonStartup.sql)
     - [chi_squared.sql](./queries/hypothesis_test/chi_squared.sql)
       
- - [/report/](./report/Written_Report.docx)
+ - [/written_report/](https://docs.google.com/document/d/1dOyz8SyU3f40s-XmVZRsFax28nx8YwV4sAFtZ8QTIk0/edit?usp=sharing)
  - [/dashboard/](https://public.tableau.com/app/profile/hakeem.leonard/viz/Restaurant_Capital_Analysis/Overview)
  - [README.md](/README.md)
 
@@ -42,7 +42,7 @@ Three techniques, each answering a different question:
 |---|---|---|
 | **Segmentation** (cross-industry + ZIP-level) | Where do reputation and lending activity diverge? | 2018–2022 |
 | **Cohort analysis** | How does the relationship develop as a business ages? | 2012–2018 (earliest window supporting complete 4-year cohorts) |
-| **Hypothesis testing** (chi-square) | Is the observed association statistically meaningful? | Full dataset |
+| **Hypothesis testing** (chi-square) | Is the observed association statistically meaningful? | April 2012–2022 (widest window with reliable restaurant-loan coverage) |
 
 Restaurants were identified two independent ways — Yelp's `categories` field and SBA's `NaicsCode LIKE '7225%'` — and cross-checked against each other. See `/queries/` for the full SQL behind each technique, with inline comments.
 
@@ -50,11 +50,11 @@ Restaurants were identified two independent ways — Yelp's `categories` field a
 
 - Restaurants receive SBA loans at **1.86%** citywide vs. **6.07%** for all businesses — roughly a third of the citywide rate — despite a ratings gap of only ~0.08 points (3.54 vs. 3.62).
 - The loan-rate gap **persists** (not widens) as cohorts age: 2.8x–3.4x lower than citywide across all four years tracked since a business's first review.
-- Restaurants capture a disproportionate share of **startup-phase** loans (25.74%) but a much smaller share of **non-startup** loans (7.63%) — χ² = 111.87, p < .001. The gap is concentrated in the post-startup phase, exactly where a reputation-based signal becomes usable but isn't currently applied.
+- Restaurants capture a disproportionate share of **startup-phase** loans (30.21%) but a much smaller share of **non-startup** loans (11.39%) — χ² = 72.36, p < .001. The gap is concentrated in the post-startup phase, exactly where a reputation-based signal becomes usable but isn't currently applied.
 - ZIP 19140 is a clear local example: restaurants are the majority business type and rated *above* the ZIP's average, yet receive loans at 1.82% vs. 28.42% for all businesses in the ZIP.
 - Beauty shops (and, more severely, dentists) show a comparable underfunding pattern, suggesting the reputation-lending disconnect may not be restaurant-specific.
 
-## Corrections & Known Issues
+## Selected Corrections & Known Issues
 
 Documenting corrections made during the analysis, since a few materially changed the results:
 
@@ -65,10 +65,9 @@ Documenting corrections made during the analysis, since a few materially changed
 | ZIP-year drop-out (Day 12) | Businesses in ZIP-years with zero recorded loans were silently dropped from the join rather than counted at a true 0%, understating the gap | Recomputed against a complete ZIP × year grid (LEFT JOIN); gap widened from ~1.6x pre-fix to the corrected **2.8x–3.4x**. Also reframed "widens" → "persists," since per-cohort data doesn't consistently support a widening trend | [cohort_loan_rate.sql](./queries/cohort_analysis/cohort_loan_rate.sql) |
 | Small-denominator ZIP-years | Very small business counts (e.g., 2 restaurants, 1 loan → 50%) produced unstable rates | ZIP-years with fewer than 10 businesses in the relevant category fall back to that year's citywide rate | [cohort_loan_rate.sql](./queries/cohort_analysis/cohort_loan_rate.sql) |
 | Sign-convention bug (Day 14) | Two BigQuery queries feeding the Zip Explorer dashboard computed "Divergence Loan Prct" in opposite subtraction order (map: all-minus-restaurant; KPI card: restaurant-minus-all) — caught via a 19140 spot-check showing +26.60 vs. −26.60 | Standardized both queries on all-minus-restaurant; replaced a hardcoded citywide restaurant rate with a live subquery | [dashboard (Zip Explorer view)](https://public.tableau.com/app/profile/hakeem.leonard/viz/Restaurant_Capital_Analysis/Overview) |
-| Two analysis windows | Cross-industry/geographic/hypothesis testing use 2018–2022; cohort analysis uses 2012–2018 | Documented as a deliberate scoping choice — cohort needed the earliest window supporting full 4-year tracking (SBA restaurant records begin April 2012, not a Yelp-coverage constraint) | [See Methodology](./report/Written_Report.docx) |
+| Two analysis windows | Cross-industry/geographic analysis use 2018–2022; cohort analysis uses 2012–2018 | Documented as a deliberate scoping choice — cohort needed the earliest window supporting full 4-year tracking (SBA restaurant records begin April 2012, not a Yelp-coverage constraint) | [See Methodology](https://docs.google.com/document/d/1dOyz8SyU3f40s-XmVZRsFax28nx8YwV4sAFtZ8QTIk0/edit?usp=sharing) |
+| Hypothesis test window mismatch (identified 8/9) | The chi-square test was unintentionally run against the full 2007–2022 SBA dataset rather than the reported 2018–2022 window, including a zero-restaurant-coverage gap (pre-April 2012) that inflated the apparent Startup vs. Non-Startup disparity | Restricted the test to **April 2012–2022**; restaurant counts unchanged (87 Startup / 198 Non-Startup), non-restaurant totals fell, revising the result to χ² = 72.36 and a 30.21% vs. 11.39% split (previously 111.87 and 25.74% vs. 7.63%) | [chi_squared.sql](./queries/hypothesis_test/chi_squared.sql) |
 | Anomalous ZIPs (19176, 19195) | 55 and 35 businesses geocoded to a PO-box-only ZIP and a single-entity ZIP, respectively, both showing 0% loan activity | Flagged as likely geocoding artifacts rather than genuine findings; not excluded from data, but caveated | [zip_level_divergence.sql](./queries/segmentation/zip_level_divergence.sql) |
-
-Full corrections history: [`/notes/corrections_log.md`](./notes/corrections_log.md)
 
 ## Limitations
 
